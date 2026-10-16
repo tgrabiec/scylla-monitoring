@@ -1529,6 +1529,75 @@
             },
             {
                 "class": "row",
+                "panels": [
+                    {
+                        "dashversion": [
+                            ">2026.1"
+                        ],
+                        "span": 4,
+                        "class": "us_panel",
+                        "spec/title": "LSA compaction cost per MiB compacted by [[by]]",
+                        "spec/description": "Time LSA spends compacting segments per MiB of live data moved. Compaction is fixed work, so the cost rises when memory latency rises (e.g. cache or DRAM contention from a noisy neighbour); compare it against the node's own baseline.\n\nThe timer also covers cache eviction done during compaction, so a shift in the eviction mix moves the value too.\n\nscylla_lsa_compact_time_ms\nscylla_lsa_memory_compacted",
+                        "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], 1000 * sum(rate(scylla_lsa_compact_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]) / (sum(rate(scylla_lsa_memory_compacted{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]) / 1048576 > 0))"
+                    },
+                    {
+                        "dashversion": [
+                            ">2026.1"
+                        ],
+                        "span": 4,
+                        "class": "ms_panel",
+                        "spec/title": "LSA time spent (ms/s) $func by [[by]]",
+                        "spec/description": "Milliseconds per second LSA spends compacting, evicting, and reclaiming memory for the standard allocator. Each millisecond is counted once: compaction includes eviction done during compaction, and reclaim includes the compaction and eviction it triggers.\n\nscylla_lsa_compact_time_ms\nscylla_lsa_evict_time_ms\nscylla_lsa_reclaim_time_ms",
+                        "spec/data/spec/queries": [
+                            {
+                                "class": "graph_query",
+                                "spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_compact_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))",
+                                "spec/query/spec/legendFormat": "Compaction {{dc}} {{rack}} {{instance}} {{shard}}"
+                            },
+                            {
+                                "class": "graph_query",
+                                "spec/refId": "B",
+                                "spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_evict_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))",
+                                "spec/query/spec/legendFormat": "Eviction {{dc}} {{rack}} {{instance}} {{shard}}"
+                            },
+                            {
+                                "class": "graph_query",
+                                "spec/refId": "C",
+                                "spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_reclaim_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))",
+                                "spec/query/spec/legendFormat": "Reclaim {{dc}} {{rack}} {{instance}} {{shard}}"
+                            }
+                        ]
+                    },
+                    {
+                        "span": 4,
+                        "class": "bps_panel",
+                        "spec/title": "LSA memory compacted, evicted and freed $func by [[by]]",
+                        "spec/description": "Bytes per second LSA moves by compacting segments, evicts from cache, and frees. Freed includes evicted.\n\nscylla_lsa_memory_compacted\nscylla_lsa_memory_evicted\nscylla_lsa_memory_freed",
+                        "spec/data/spec/queries": [
+                            {
+                                "class": "graph_query",
+                                "spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_memory_compacted{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))",
+                                "spec/query/spec/legendFormat": "Compacted {{dc}} {{rack}} {{instance}} {{shard}}"
+                            },
+                            {
+                                "class": "graph_query",
+                                "spec/refId": "B",
+                                "spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_memory_evicted{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))",
+                                "spec/query/spec/legendFormat": "Evicted {{dc}} {{rack}} {{instance}} {{shard}}"
+                            },
+                            {
+                                "class": "graph_query",
+                                "spec/refId": "C",
+                                "spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_memory_freed{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))",
+                                "spec/query/spec/legendFormat": "Freed {{dc}} {{rack}} {{instance}} {{shard}}"
+                            }
+                        ]
+                    }
+                ],
+                "hideHeader": true
+            },
+            {
+                "class": "row",
                 "height": "25px",
                 "gridPos/h": 2,
                 "panels": [

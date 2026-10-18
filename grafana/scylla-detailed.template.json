@@ -1537,7 +1537,7 @@
                         "span": 3,
                         "class": "us_panel",
                         "spec/title": "LSA compaction cost per MiB compacted by [[by]]",
-                        "spec/description": "Time LSA spends compacting segments per MiB of live data moved. Compaction is fixed work, so the cost rises when memory latency rises (e.g. cache or DRAM contention from a noisy neighbour); compare it against the node's own baseline.\n\nThe timer also covers cache eviction done during compaction, so a shift in the eviction mix moves the value too.\n\nscylla_lsa_compact_time_ms\nscylla_lsa_memory_compacted",
+                        "spec/description": "Wall time LSA spends compacting segments per MiB of live data it moves. Compaction is fixed work, so on a healthy node this is flat regardless of load; it rises when memory gets slower, e.g. under cache or DRAM contention from a noisy neighbour. Compare a node against its own baseline, not against other nodes or instance types: a sustained rise while bytes compacted stay flat points at the host, not the workload.\n\nThe timer also covers cache eviction done during compaction, so more eviction raises the value without any change in memory speed; check the evicted panel first. The timer has jiffy granularity (typically 4 ms), so it is accurate in aggregate but noisy per shard over short rate windows.\n\nscylla_lsa_compact_time_ms\nscylla_lsa_memory_compacted",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], 1000 * sum(rate(scylla_lsa_compact_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]) / (sum(rate(scylla_lsa_memory_compacted{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]) / 1048576 > 0))"
                     },
                     {
@@ -1547,7 +1547,7 @@
                         "span": 3,
                         "class": "ms_panel",
                         "spec/title": "LSA compaction time (ms/s) $func by [[by]]",
-                        "spec/description": "Milliseconds per second LSA spends compacting segments, including cache eviction done during compaction.\n\nscylla_lsa_compact_time_ms",
+                        "spec/description": "Milliseconds per second of wall time LSA spends compacting segments to make room for new LSA allocations (cache population, memtable writes) once LSA has reached its memory limit. 1000 ms/s is one shard busy full time, so summed over a node the ceiling is 1000 times the shard count. The work runs inline in the allocating task, so it takes CPU from the shard and adds to request latency.\n\nIncludes cache eviction done during compaction. Compaction done on behalf of reclaim counts under reclaim time instead. The timer has jiffy granularity (typically 4 ms), so it is accurate in aggregate but noisy per shard over short rate windows.\n\nscylla_lsa_compact_time_ms",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_compact_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))"
                     },
                     {
@@ -1557,7 +1557,7 @@
                         "span": 3,
                         "class": "ms_panel",
                         "spec/title": "LSA eviction time (ms/s) $func by [[by]]",
-                        "spec/description": "Milliseconds per second LSA spends evicting from cache when compaction alone does not free enough memory.\n\nscylla_lsa_evict_time_ms",
+                        "spec/description": "Milliseconds per second of wall time LSA spends evicting cache because no region can be compacted, i.e. LSA memory is packed so densely with live data that compaction cannot free a segment. Usually zero; a non-zero value means allocations are being satisfied only by evicting cache. Runs inline in the allocating task.\n\nEviction done during compaction or reclaim counts under those panels, not here. The timer has jiffy granularity (typically 4 ms), so it is accurate in aggregate but noisy per shard over short rate windows.\n\nscylla_lsa_evict_time_ms",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_evict_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))"
                     },
                     {
@@ -1567,7 +1567,7 @@
                         "span": 3,
                         "class": "ms_panel",
                         "spec/title": "LSA reclaim time (ms/s) $func by [[by]]",
-                        "spec/description": "Milliseconds per second LSA spends returning memory to the standard allocator, including the compaction and eviction it triggers.\n\nscylla_lsa_reclaim_time_ms",
+                        "spec/description": "Milliseconds per second of wall time LSA spends returning memory to the standard allocator, including the compaction and eviction this requires. It rises when non-LSA memory use grows: the background reclaimer runs, in its own scheduling group, whenever a shard has less than 60 MB of free standard memory, and allocations that find the standard allocator short reclaim synchronously. Sustained high values mean LSA and non-LSA memory are competing; compare with the Non-LSA used memory panel.\n\nThe timer has jiffy granularity (typically 4 ms), so it is accurate in aggregate but noisy per shard over short rate windows.\n\nscylla_lsa_reclaim_time_ms",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_reclaim_time_ms{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))"
                     }
                 ],
@@ -1580,28 +1580,28 @@
                         "span": 3,
                         "class": "bps_panel",
                         "spec/title": "LSA memory compacted $func by [[by]]",
-                        "spec/description": "Bytes per second of live data LSA moves by compacting segments.\n\nscylla_lsa_memory_compacted",
+                        "spec/description": "Bytes per second of live data LSA copies while compacting segments. Read it with the compaction cost panel: more work shows here, slower work shows there with this panel flat.\n\nscylla_lsa_memory_compacted",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_memory_compacted{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))"
                     },
                     {
                         "span": 3,
                         "class": "bps_panel",
                         "spec/title": "LSA memory evicted $func by [[by]]",
-                        "spec/description": "Bytes per second LSA evicts from cache to free memory.\n\nscylla_lsa_memory_evicted",
+                        "spec/description": "Bytes per second LSA evicts from cache to make room. Sustained eviction means the cache is at its memory limit and churning. Eviction also costs compaction time, so a rise here raises the compaction cost without any change in memory speed.\n\nscylla_lsa_memory_evicted",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_memory_evicted{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))"
                     },
                     {
                         "span": 3,
                         "class": "bps_panel",
                         "spec/title": "LSA memory freed $func by [[by]]",
-                        "spec/description": "Bytes per second freed in LSA, including evicted.\n\nscylla_lsa_memory_freed",
+                        "spec/description": "Bytes per second of LSA objects freed, either by eviction or explicitly by their owner. Freed minus evicted is memory released without eviction.\n\nscylla_lsa_memory_freed",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_memory_freed{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))"
                     },
                     {
                         "span": 3,
                         "class": "bps_panel",
                         "spec/title": "LSA memory allocated $func by [[by]]",
-                        "spec/description": "Bytes per second allocated in LSA, not counting copies made by compaction.\n\nscylla_lsa_memory_allocated",
+                        "spec/description": "Bytes per second allocated in LSA by cache population and memtable writes, not counting copies made by compaction. When allocation outpaces freeing, LSA memory grows.\n\nscylla_lsa_memory_allocated",
                         "spec/data/spec/queries/0/spec/query/spec/expr": "$topbottom([[filter_limit]], $func(rate(scylla_lsa_memory_allocated{instance=~\"[[node]]\",cluster=\"$cluster\", dc=~\"$dc\", rack=~\"$rack\", shard=~\"[[shard]]\"}[$__rate_interval])) by ([[by]]))"
                     }
                 ],
